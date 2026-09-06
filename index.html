@@ -1,4 +1,4 @@
-<title>Space racers</title>
+<title>Space Racers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grandstander:wght@600;800;900&family=Nunito:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap">
@@ -128,6 +128,22 @@
   .standings td.pts{text-align:right;font-family:"DM Mono",monospace;font-weight:500}
   .standings tr.you td{font-weight:800}
   .standings tr.gap td{text-align:center;color:var(--ink-soft);letter-spacing:.35em;padding:2px}
+
+  /* controls & help screen */
+  .ctrls{width:100%;border-collapse:collapse;margin-top:2px}
+  .ctrls td{padding:7px 8px;border-bottom:1.5px solid var(--line);vertical-align:middle}
+  .ctrls td:first-child{font-weight:700}
+  .ctrls .kcell{text-align:right;white-space:nowrap}
+  .ctrls td:last-child{text-align:right;width:1%}
+  .ctrls kbd{display:inline-block;background:var(--paper-2);border:1.5px solid var(--card-edge);
+    border-bottom-width:3px;border-radius:6px;padding:1px 7px;margin-left:3px;
+    font-family:"DM Mono",ui-monospace,monospace;font-size:.8rem;color:var(--ink)}
+  .ctrls .press{font-family:"DM Mono",monospace;font-size:.78rem;color:var(--teal);letter-spacing:.05em}
+  .ctrls tr.capturing td{background:color-mix(in srgb,var(--teal) 16%,transparent)}
+  .ctrls .rebind{padding:.3em .7em;font-size:.76rem;border-radius:9px;box-shadow:0 3px 0 rgba(25,29,56,.2)}
+  .tips{margin:4px 0 0;padding-left:18px;color:var(--ink-soft);line-height:1.55;font-size:.94rem}
+  .tips li{margin:3px 0}
+  .tips b{color:var(--ink)}
 
   .level-band{display:flex;gap:20px 26px;flex-wrap:wrap;margin:22px 0 4px;padding:14px 18px;
     border:2px solid var(--ink);border-radius:16px 12px 16px 12px;background:var(--paper-2)}
@@ -716,24 +732,73 @@ function makeField(){
 }
 var player=null;
 
-/* ---------------------------------------------------------------- input */
+/* ---------------------------------------------------------------- input + key bindings */
+var DEFAULT_KEYMAP={
+  left:["ArrowLeft","KeyA"], right:["ArrowRight","KeyD"],
+  climb:["ArrowUp","KeyW"], dive:["ArrowDown"],
+  boost:["ShiftLeft","ShiftRight"], fire:["Space"], brake:["KeyS"],
+  camera:["KeyC"], alerts:["KeyT"], sound:["KeyM"], pause:["Escape"]
+};
+var ACTION_ORDER=["left","right","climb","dive","boost","fire","brake","camera","alerts","sound","pause"];
+var ACTION_LABEL={left:"Steer left",right:"Steer right",climb:"Climb",dive:"Dive",boost:"Boost",
+  fire:"Fire",brake:"Brake",camera:"Cockpit / chase view",alerts:"Incoming alerts on / off",
+  sound:"Sound on / off",pause:"Pause"};
+function freshKeymap(){ var m={}; for(var k in DEFAULT_KEYMAP)m[k]=DEFAULT_KEYMAP[k].slice(); return m; }
+var KEYMAP=(function(){
+  var m=freshKeymap();
+  try{ var s=JSON.parse(localStorage.getItem("cc-keymap")||"null");
+    if(s) for(var a in m) if(Array.isArray(s[a])&&s[a].length) m[a]=s[a].slice(); }catch(e){}
+  return m;
+})();
+function saveKeymap(){ try{ localStorage.setItem("cc-keymap",JSON.stringify(KEYMAP)); }catch(e){} }
+function actFor(code){ for(var a in KEYMAP) if(KEYMAP[a].indexOf(code)>=0) return a; return null; }
+function bindKey(action,code){
+  var prev=actFor(code);
+  if(prev&&prev!==action) KEYMAP[prev]=KEYMAP[prev].filter(function(c){return c!==code;});
+  KEYMAP[action]=[code];
+  saveKeymap();
+}
+function keyName(code){
+  var m={ArrowLeft:"&larr;",ArrowRight:"&rarr;",ArrowUp:"&uarr;",ArrowDown:"&darr;",Space:"Space",Escape:"Esc",
+    ShiftLeft:"L Shift",ShiftRight:"R Shift",ControlLeft:"L Ctrl",ControlRight:"R Ctrl",
+    AltLeft:"L Alt",AltRight:"R Alt",MetaLeft:"L Cmd",MetaRight:"R Cmd",Enter:"Enter",Tab:"Tab"};
+  if(m[code])return m[code];
+  if(code.indexOf("Key")===0)return code.slice(3);
+  if(code.indexOf("Digit")===0)return code.slice(5);
+  if(code.indexOf("Numpad")===0)return "Num "+code.slice(6);
+  return code;
+}
+
 var keys={};
+var rebindAction=null;                      // set while the Controls screen is capturing a key
 addEventListener("keydown",function(e){
-  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].indexOf(e.key)>=0)e.preventDefault();
+  if(rebindAction){
+    e.preventDefault();
+    if(e.code!=="Escape") bindKey(rebindAction,e.code);
+    rebindAction=null;
+    if(typeof renderControls==="function") renderControls();
+    return;
+  }
+  if(actFor(e.code) && e.code!=="Escape") e.preventDefault();
   var first=!keys[e.code];
   keys[e.code]=true;
-  if(e.code==="Escape")togglePause();
-  if(first&&e.code==="Space"&&STATE==="race")tryFire(player);
-  if(first&&e.code==="KeyC"&&(STATE==="race"||STATE==="countdown"||STATE==="paused"))toggleView();
-  if(first&&e.code==="KeyT")toggleAlerts();
-  if(first&&e.code==="KeyM")setSound(!Audio_.on);
+  var a=actFor(e.code);
+  if(first&&a==="pause"){
+    if(ctrlOpen){ var bk=document.getElementById("ctrlBack"); if(bk)bk.click(); }
+    else togglePause();
+  }
+  if(first&&a==="fire"&&STATE==="race")tryFire(player);
+  if(first&&a==="camera"&&(STATE==="race"||STATE==="countdown"||STATE==="paused"))toggleView();
+  if(first&&a==="alerts")toggleAlerts();
+  if(first&&a==="sound")setSound(!Audio_.on);
 });
+addEventListener("keyup",function(e){keys[e.code]=false;});
+function held(action){ var b=KEYMAP[action]; for(var i=0;i<b.length;i++) if(keys[b[i]]) return true; return false; }
 function toggleView(){
   camMode=camMode==="chase"?"first":"chase";
   if(camMode==="chase"){ camera.up.set(0,1,0); if(player)player.mesh.visible=true; }
   Audio_.blip(camMode==="first"?620:420,0.07,"sine",0.14);
 }
-addEventListener("keyup",function(e){keys[e.code]=false;});
 var touchDir=0, touchBoost=false, touchBrake=false;
 if(isTouch){
   document.querySelectorAll("#touch .z").forEach(function(z){
@@ -767,16 +832,16 @@ holdBtn("cBrake",function(){touchBrake=true;},function(){touchBrake=false;});
   if(v)v.addEventListener("click",function(){if(STATE==="race"||STATE==="countdown"||STATE==="paused")toggleView();});
 })();
 function playerInput(){
-  // left arrow -> screen-left (world +X, because the chase cam looks down +Z)
+  // "left" -> screen-left (world +X, because the chase cam looks down +Z)
   var steer=0, thr=1, brake=false, boost=false;
-  if(keys.ArrowLeft||keys.KeyA)steer+=1;
-  if(keys.ArrowRight||keys.KeyD)steer-=1;
+  if(held("left"))steer+=1;
+  if(held("right"))steer-=1;
   if(isTouch)steer-=touchDir;
-  if(keys.KeyS||keys.ArrowDown||touchBrake){brake=true;thr=0;}
-  if(keys.ShiftLeft||keys.ShiftRight||touchBoost)boost=true;
+  if(held("brake")||touchBrake){brake=true;thr=0;}
+  if(held("boost")||touchBoost)boost=true;
   var vsteer=0;
-  if(keys.KeyW||keys.ArrowUp)vsteer+=1;
-  if((keys.KeyS||keys.ArrowDown)&&!touchBrake)vsteer-=1;
+  if(held("climb"))vsteer+=1;
+  if(held("dive"))vsteer-=1;
   return {steer:Math.max(-1,Math.min(1,steer)),vsteer:vsteer,thr:thr,brake:brake,boost:boost};
 }
 
@@ -791,7 +856,7 @@ function show(el){el.classList.add("show");}
 function hide(el){el.classList.remove("show");}
 
 function menu(){
-  STATE="menu"; hide(hud); hide(document.getElementById("touch")); topbar.classList.remove("hide");
+  STATE="menu"; ctrlOpen=false; hide(hud); hide(document.getElementById("touch")); topbar.classList.remove("hide");
   Audio_.stopHum();
   camMode="chase"; camera.up.set(0,1,0);
   if(typeof demoRocket!=="undefined"&&demoRocket)demoRocket.visible=true;
@@ -804,7 +869,7 @@ function menu(){
   overlay.innerHTML=
     '<div class="panel card">'+
       '<div class="eyebrow">Interplanetary Postal Derby &middot; Level '+level+'</div>'+
-      '<div class="title-row"><span class="cup">🚀</span><h1>Comet Cup</h1></div>'+
+      '<div class="title-row"><span class="cup">🚀</span><h1>Space Racers</h1></div>'+
       '<p class="tagline">Twenty-two mail rockets launch from Aurora. Every level, two fewer make the next start line &mdash; so fly clean, catch the rings, and shoot your way up the order. How far can Route&nbsp;9 get?</p>'+
       '<div class="level-band">'+
         '<div><div class="lb-k">Level</div><div class="lb-v">'+level+'</div></div>'+
@@ -814,19 +879,66 @@ function menu(){
       '</div>'+
       '<div class="grid-swatches">'+swatches+'</div>'+
       '<div class="actions"><button class="primary" id="go">'+(level>1?'Fly Level '+level:'Launch')+' &rarr;</button>'+
+        '<button id="showCtrls">Controls &amp; help</button>'+
         (level>1?'<button id="restartChamp">Back to Level 1</button>':"")+'</div>'+
       '<p class="hint">'+(isTouch
-        ? "Tap left / right sides to steer &middot; <b>BOOST</b> &middot; <b>BRAKE</b> &middot; <b>FIRE</b> &middot; <b>VIEW</b> swaps camera"
-        : "<kbd>&larr;</kbd><kbd>&rarr;</kbd> steer &middot; <kbd>&uarr;</kbd><kbd>&darr;</kbd> climb / dive &middot; <kbd>Shift</kbd> boost &middot; <kbd>Space</kbd> fire &middot; <kbd>S</kbd> brake &middot; <kbd>C</kbd> cockpit &middot; <kbd>T</kbd> alerts &middot; <kbd>M</kbd> sound &middot; <kbd>Esc</kbd> pause")+
-        '<br>Throttle is always open. Boost burns fuel &mdash; run it dry and it needs a few seconds to rebuild (a teal ring refuels it instantly). When a shot or a rival is bearing down, the alert tells you which way to break.</p>'+
+        ? "Tap the left / right of the screen to steer; on-screen <b>BOOST</b> / <b>BRAKE</b> / <b>FIRE</b> / <b>VIEW</b> buttons for the rest."
+        : "<kbd>&larr;</kbd><kbd>&rarr;</kbd> steer &middot; <kbd>&uarr;</kbd><kbd>&darr;</kbd> climb / dive &middot; <kbd>Shift</kbd> boost &middot; <kbd>Space</kbd> fire &middot; <kbd>C</kbd> cockpit")+
+        '<br>Open <b>Controls &amp; help</b> for the full guide &mdash; and to rebind any key to your liking.</p>'+
     '</div>';
   show(overlay);
   document.getElementById("go").onclick=function(){Audio_.init();Audio_.resume();startLeg();};
+  document.getElementById("showCtrls").onclick=function(){ ctrlFrom="menu"; showControls(); };
   var rc=document.getElementById("restartChamp");
   if(rc)rc.onclick=function(){level=1;career=0;menu();};
 }
 
+/* ---------------------------------------------------------------- controls & help screen */
+var ctrlFrom="menu", ctrlOpen=false;
+function showControls(){ rebindAction=null; renderControls(); }
+function renderControls(){
+  ctrlOpen=true;
+  var rows=ACTION_ORDER.map(function(a){
+    var kb=KEYMAP[a].map(function(c){return '<kbd>'+keyName(c)+'</kbd>';}).join(" ");
+    var cap=(rebindAction===a);
+    return '<tr'+(cap?' class="capturing"':'')+'><td>'+ACTION_LABEL[a]+'</td>'+
+      '<td class="kcell">'+(cap?'<span class="press">press a key&hellip;</span>':kb)+'</td>'+
+      '<td><button class="rebind" data-a="'+a+'">'+(cap?'Cancel':'Change')+'</button></td></tr>';
+  }).join("");
+  overlay.innerHTML=
+    '<div class="panel card">'+
+      '<div class="eyebrow">Controls &amp; help</div>'+
+      '<h2 style="font-size:1.7rem;margin-top:4px">How to play</h2>'+
+      '<p class="tagline">Fly your rocket from planet to planet and finish as high as you can &mdash; every level cuts the field by two. Grab the teal rings for a speed surge, line a rival up dead ahead until the reticle turns gold and fire, and break the way the alert points when a shot is on you.</p>'+
+      '<h3 style="margin:22px 0 2px;font-size:1.02rem">Keyboard</h3>'+
+      '<p class="hint" style="margin:0 0 8px">Click <b>Change</b>, then press the key you want. <kbd>Esc</kbd> cancels.</p>'+
+      '<table class="ctrls"><tbody>'+rows+'</tbody></table>'+
+      (isTouch?'<p class="hint">This device also has on-screen <b>BOOST</b> / <b>BRAKE</b> / <b>FIRE</b> / <b>VIEW</b> buttons.</p>':'')+
+      '<h3 style="margin:22px 0 4px;font-size:1.02rem">Good to know</h3>'+
+      '<ul class="tips">'+
+        '<li>Throttle is always on. <b>Boost</b> burns fuel; run it dry and it locks for a few seconds while it recharges.</li>'+
+        '<li>Teal rings give an instant acceleration surge and a full refuel.</li>'+
+        '<li>You have a few shots that slowly recharge &mdash; and rivals shoot back.</li>'+
+        '<li><b>Cockpit view</b> adds a rear-view mirror so you can watch what\'s gaining on you.</li>'+
+      '</ul>'+
+      '<div class="actions">'+
+        '<button class="primary" id="ctrlBack">Back</button>'+
+        '<button id="ctrlReset">Reset to defaults</button>'+
+      '</div>'+
+    '</div>';
+  show(overlay);
+  overlay.querySelectorAll(".rebind").forEach(function(b){
+    b.onclick=function(){ var a=b.dataset.a; rebindAction=(rebindAction===a)?null:a; renderControls(); };
+  });
+  document.getElementById("ctrlBack").onclick=function(){
+    rebindAction=null;
+    if(ctrlFrom==="pause"){ ctrlFrom="menu"; pauseScreen(); } else menu();
+  };
+  document.getElementById("ctrlReset").onclick=function(){ KEYMAP=freshKeymap(); saveKeymap(); rebindAction=null; renderControls(); };
+}
+
 function startLeg(){
+  ctrlOpen=false;
   track=levelTrack(); seed=level*99991+7;
   loadTrack(track,seed); makeField();
   camPos.set(0,4.5,-24); camera.position.copy(camPos);
@@ -869,15 +981,21 @@ function buildBoostPips(){
 }
 
 /* ---------------------------------------------------------------- pause */
+function pauseScreen(){
+  ctrlOpen=false;
+  overlay.innerHTML='<div class="panel card" style="max-width:440px"><div class="eyebrow">Holding position</div>'+
+    '<h2 style="font-size:1.8rem;margin-top:6px">Paused</h2>'+
+    '<div class="actions"><button class="primary" id="resume">Resume</button>'+
+    '<button id="pauseCtrls">Controls &amp; help</button>'+
+    '<button id="quit">Quit to menu</button></div></div>';
+  show(overlay);
+  document.getElementById("resume").onclick=function(){hide(overlay);STATE="race";Audio_.startHum();};
+  document.getElementById("pauseCtrls").onclick=function(){ ctrlFrom="pause"; showControls(); };
+  document.getElementById("quit").onclick=function(){hide(overlay);menu();};
+}
 function togglePause(){
-  if(STATE==="race"){STATE="paused";Audio_.stopHum();
-    overlay.innerHTML='<div class="panel card" style="max-width:420px"><div class="eyebrow">Holding position</div>'+
-      '<h2 style="font-size:1.8rem;margin-top:6px">Paused</h2>'+
-      '<div class="actions"><button class="primary" id="resume">Resume</button><button id="quit">Quit to menu</button></div></div>';
-    show(overlay);
-    document.getElementById("resume").onclick=function(){hide(overlay);STATE="race";Audio_.startHum();};
-    document.getElementById("quit").onclick=function(){hide(overlay);menu();};
-  } else if(STATE==="paused"){hide(overlay);STATE="race";Audio_.startHum();}
+  if(STATE==="race"){ STATE="paused"; Audio_.stopHum(); pauseScreen(); }
+  else if(STATE==="paused"){ hide(overlay); STATE="race"; Audio_.startHum(); }
 }
 
 /* ---------------------------------------------------------------- results */

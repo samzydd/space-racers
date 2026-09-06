@@ -29,7 +29,8 @@ your way up the order.
 | M | toggle sound |
 | Esc | pause |
 
-Touch controls (on-screen buttons) are provided on mobile.
+All keys are rebindable in the in-game **Controls & help** screen (from the menu or the pause menu). Touch controls (on-screen buttons) are provided on mobile.
+
 
 ## Tech
 
