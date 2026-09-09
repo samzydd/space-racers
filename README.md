@@ -10,7 +10,9 @@ your way up the order.
 
 - 3rd-person **and** first-person / cockpit camera (`C`), with a live rear-view mirror
 - Endless levels: 22 rockets on level 1, two fewer each level (routes cycle through three environments)
-- Forward weapons with target lock; rivals shoot back, with a directional "dodge" alert
+- Unlimited forward fire with target lock; rivals shoot back, with a directional "dodge" alert
+- Weapon gems: amber = extra cannon (up to x3), violet = more firepower (colours your shots),
+  green = seeker missiles that home onto a target. Firepower/cannons carry between levels
 - Shots also blow up asteroids in your path
 - Boost that burns out and needs to recharge; flaming BOOST rings give an acceleration surge
 - Procedural rockets, asteroid fields, planets, nebulae — everything drawn in code

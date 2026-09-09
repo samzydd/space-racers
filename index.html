@@ -185,17 +185,20 @@
 
   #speed-card{position:absolute;right:18px;bottom:20px;padding:10px 16px 12px;text-align:right;min-width:158px}
   #speed{font-family:"DM Mono",monospace;font-size:1.5rem;font-weight:500;font-variant-numeric:tabular-nums}
-  #boost-wrap,#ammo-wrap{margin-top:5px;display:flex;gap:3px;justify-content:flex-end}
+  #boost-wrap{margin-top:5px;display:flex;gap:3px;justify-content:flex-end}
   #boost-wrap i{width:15px;height:9px;border:1.5px solid var(--ink);border-radius:2px;background:transparent;transition:background .1s}
   #boost-wrap i.on{background:var(--teal)}
   #boost-wrap i.lock{border-color:var(--red);animation:blk .45s steps(1) infinite alternate}
   @keyframes blk{from{background:var(--red)}to{background:transparent}}
-  #ammo-wrap i{width:9px;height:15px;border:1.5px solid var(--ink);border-radius:2px 2px 3px 3px;background:transparent;transition:background .12s}
-  #ammo-wrap i.on{background:var(--red)}
   #boost-lbl{color:var(--teal)}
   #boost-lbl[data-s="lock"]{color:var(--red)}
   #boost-lbl[data-s="go"]{color:var(--gold)}
-  #ammo-lbl{color:var(--red)}
+  #wpn-lbl{color:var(--red)}
+  #weapon{margin-top:5px;display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap}
+  #weapon span{font-family:"DM Mono",ui-monospace,monospace;font-size:.7rem;font-weight:500;
+    padding:2px 7px;border:1.5px solid var(--ink);border-radius:6px;background:var(--paper-2);color:var(--ink);white-space:nowrap}
+  #w-power{border-color:transparent;font-weight:700}
+  #w-homing{background:#123; border-color:#4dff9e; color:#4dff9e}
 
   /* targeting reticle + combat callouts */
   #reticle{position:absolute;width:52px;height:52px;transform:translate(-50%,-50%);pointer-events:none;opacity:0;transition:opacity .12s}
@@ -361,9 +364,10 @@
     #track{height:18px}
     #speed-card{left:10px;right:auto;bottom:96px;text-align:left;min-width:0;padding:7px 11px 9px}
     #speed{font-size:1.15rem}
-    #boost-wrap,#ammo-wrap{justify-content:flex-start}
-    #boost-wrap i{width:13px}#ammo-wrap i{width:8px}
-    #ammo-lbl{margin-top:4px!important}
+    #boost-wrap,#weapon{justify-content:flex-start}
+    #boost-wrap i{width:13px}
+    #weapon span{font-size:.64rem;padding:2px 5px}
+    #wpn-lbl{margin-top:4px!important}
     #sndGame{width:38px;height:38px;left:12px;bottom:12px;font-size:1rem}
     #reticle{width:42px;height:42px}
     #reticle b{font-size:.5rem;top:-16px}
@@ -442,8 +446,12 @@
     <div id="speed">0 <span style="font-size:.7em">km/s</span></div>
     <div class="hud-tag" id="boost-lbl" style="margin-top:6px">Boost</div>
     <div id="boost-wrap"></div>
-    <div class="hud-tag" id="ammo-lbl" style="margin-top:6px">Shots</div>
-    <div id="ammo-wrap"></div>
+    <div class="hud-tag" id="wpn-lbl" style="margin-top:6px">Weapon</div>
+    <div id="weapon">
+      <span id="w-multi">&times;1</span>
+      <span id="w-power">PWR&nbsp;1</span>
+      <span id="w-homing" hidden>&#8982;&nbsp;0</span>
+    </div>
   </div>
   <div id="reticle"><b>TARGET IN SIGHT</b></div>
   <div id="warn">⚠ INCOMING</div>
@@ -744,7 +752,35 @@ var BOOST_TEX=(function(){
   var t=new T.CanvasTexture(c); t.colorSpace=T.SRGBColorSpace; t.userData._keep=true; return t;
 })();
 
-var asteroids=[], pickups=[], planetA=null, planetB=null, bg=null;
+/* ---- weapon upgrades (persist across levels; reset on Re-fly / Back to Level 1) ---- */
+var WPN={multi:1, power:1, homing:0};
+var POWER_COLS=[0x9fefff,0x74b4ff,0xb06bff,0xff63ad,0xffc24a,0xff4632];
+function powerColor(p){ return POWER_COLS[Math.min(Math.max(p,1)-1, POWER_COLS.length-1)]; }
+var GEM_GEO=new T.OctahedronGeometry(1.15,0); GEM_GEO.userData._keep=true;
+var HALO_TEX=(function(){
+  var c=document.createElement("canvas"); c.width=c.height=64; var x=c.getContext("2d");
+  var g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,"rgba(255,255,255,1)"); g.addColorStop(.35,"rgba(255,255,255,.5)"); g.addColorStop(1,"rgba(255,255,255,0)");
+  x.fillStyle=g; x.fillRect(0,0,64,64);
+  var t=new T.CanvasTexture(c); t.userData._keep=true; return t;
+})();
+var GEM_KIND={
+  multi:{col:0xffb020, rgb:[1,.7,.12]},
+  power:{col:0xd24bff, rgb:[.85,.3,1]},
+  homing:{col:0x4dff9e, rgb:[.3,1,.62]}
+};
+function makeGem(type){
+  var k=GEM_KIND[type], g=new T.Group();
+  var crystal=new T.Mesh(GEM_GEO,new T.MeshStandardMaterial({color:k.col,emissive:k.col,emissiveIntensity:1.1,roughness:.25,metalness:.3,flatShading:true}));
+  var halo=new T.Sprite(new T.SpriteMaterial({map:HALO_TEX,color:k.col,transparent:true,opacity:.5,blending:T.AdditiveBlending,depthWrite:false}));
+  halo.scale.set(6,6,1);
+  g.add(crystal,halo);
+  g.userData={live:true,type:type,t:Math.random()*6,crystal:crystal,halo:halo};
+  return g;
+}
+var MISSILE_GEO=(function(){ var g=new T.ConeGeometry(0.42,2.6,8); g.rotateX(-Math.PI/2); g.userData._keep=true; return g; })(); // tip -Z so mesh.lookAt(target) aims it
+
+var asteroids=[], pickups=[], gems=[], planetA=null, planetB=null, bg=null;
 
 function disposeObj(o){
   o.traverse(function(c){
@@ -757,7 +793,7 @@ function disposeObj(o){
 function loadTrack(t,seed){
   while(trackGroup.children.length){ var ch=trackGroup.children[0]; trackGroup.remove(ch); disposeObj(ch); }
   if(bg)bg.dispose();
-  asteroids=[];pickups=[];shots=[];
+  asteroids=[];pickups=[];gems=[];shots=[];
   for(var _z=0;_z<PT_N;_z++)ptData[_z].life=0;
   var rnd=mulberry32(seed);
   bg=nebulaTexture(t.sky); scene.background=bg;
@@ -808,6 +844,16 @@ function loadTrack(t,seed){
     trackGroup.add(rg); pickups.push(rg);
     z2+=gap+rnd()*220;
   }
+  // weapon gems — power (common), twin-shot (uncommon), seeker/homing (rare)
+  var gz=720;
+  while(gz<t.len-320){
+    var roll=rnd(), gt = roll<0.5 ? "power" : (roll<0.82 ? "multi" : "homing");
+    var gang=rnd()*Math.PI*2, grad=rnd()*t.laneR*0.62;
+    var gm=makeGem(gt);
+    gm.position.set(Math.cos(gang)*grad, Math.sin(gang)*grad*0.85, gz);
+    trackGroup.add(gm); gems.push(gm);
+    gz += 520 + rnd()*300;
+  }
   planetA=new T.Mesh(new T.SphereGeometry(190,32,24),new T.MeshStandardMaterial({map:planetTexture(t.start),roughness:1}));
   planetA.position.set(-40,-30,-240); trackGroup.add(planetA);
   planetB=new T.Mesh(new T.SphereGeometry(240,36,28),new T.MeshStandardMaterial({map:planetTexture(t.finish),roughness:1,emissive:new T.Color(t.finish).multiplyScalar(.12)}));
@@ -843,7 +889,7 @@ function makeField(){
       boost:def.you?72:52, boosting:false,
       hitT:0,finished:false,finishTime:0,place:idx+1,roll:0,pitch:0,
       laneBiasX:sx*0.72, laneBiasY:(Math.random()-.5)*lr*0.35, thrust:0,
-      ammo:def.you?3:2,ammoT:0,fireCd:0,lockTarget:null,exploding:0,shield:1.2,flick:0,ringT:0,boostLock:0});
+      hp:def.you?3:2, hitFlash:0, fireCd:0,lockTarget:null,exploding:0,shield:1.2,flick:0,ringT:0,boostLock:0});
   });
   player=field[0];
 }
@@ -993,6 +1039,7 @@ function menu(){
         '<div><div class="lb-k">Route</div><div class="lb-v">'+t.name+'</div></div>'+
         '<div><div class="lb-k">On the grid</div><div class="lb-v">'+n+' rockets</div></div>'+
         (career>0?'<div><div class="lb-k">Career</div><div class="lb-v">'+career+' pts</div></div>':'')+
+        ((WPN.multi>1||WPN.power>1)?'<div><div class="lb-k">Weapon</div><div class="lb-v">×'+WPN.multi+' · PWR '+WPN.power+'</div></div>':'')+
       '</div>'+
       '<div class="grid-swatches">'+swatches+'</div>'+
       '<div class="actions"><button class="primary" id="go">'+(level>1?'Fly Level '+level:'Launch')+' &rarr;</button>'+
@@ -1007,7 +1054,7 @@ function menu(){
   document.getElementById("go").onclick=function(){Audio_.init();Audio_.resume();startLeg();};
   document.getElementById("showCtrls").onclick=function(){ ctrlFrom="menu"; showControls(); };
   var rc=document.getElementById("restartChamp");
-  if(rc)rc.onclick=function(){level=1;career=0;menu();};
+  if(rc)rc.onclick=function(){level=1;career=0;WPN.multi=1;WPN.power=1;WPN.homing=0;menu();};
 }
 
 /* ---------------------------------------------------------------- controls & help screen */
@@ -1035,7 +1082,8 @@ function renderControls(){
       '<ul class="tips">'+
         '<li>Throttle is always on. <b>Boost</b> burns fuel; run it dry and it locks for a few seconds while it recharges.</li>'+
         '<li>The flaming <b>&raquo; BOOST &laquo;</b> rings give an instant acceleration surge and a full refuel &mdash; fly straight through the middle.</li>'+
-        '<li>You have a few shots that slowly recharge &mdash; and rivals shoot back. Shots also blow up asteroids in your path.</li>'+
+        '<li>Fire is unlimited. Rivals shoot back, and your shots also blow up asteroids in your path.</li>'+
+        '<li>Collect <b>weapon gems</b>: <span style="color:#ffb020">amber</span> = extra cannon (up to ×3), <span style="color:#d24bff">violet</span> = more firepower (its colour shows in your shots), <span style="color:#4dff9e">green</span> = seeker missiles that chase a target until they hit. Firepower and cannons carry into the next level.</li>'+
         '<li><b>Cockpit view</b> (press <kbd>C</kbd>) adds a rear-view mirror so you can watch what\'s gaining on you.</li>'+
       '</ul>'+
       '<div class="actions">'+
@@ -1096,8 +1144,17 @@ function buildTrackPins(){
 function buildBoostPips(){
   var w=document.getElementById("boost-wrap");w.innerHTML="";
   for(var i=0;i<10;i++)w.appendChild(document.createElement("i"));
-  var a=document.getElementById("ammo-wrap");a.innerHTML="";
-  for(var j=0;j<3;j++)a.appendChild(document.createElement("i"));
+  updateWeaponHUD();
+}
+function updateWeaponHUD(){
+  document.getElementById("w-multi").textContent="×"+WPN.multi;
+  var wp=document.getElementById("w-power");
+  wp.textContent="PWR "+WPN.power;
+  wp.style.background="#"+powerColor(WPN.power).toString(16).padStart(6,"0");
+  wp.style.color=WPN.power>=4?"#fff":"#161326";
+  var wh=document.getElementById("w-homing");
+  wh.hidden=WPN.homing<=0;
+  wh.textContent="⌖ "+WPN.homing;
 }
 
 /* ---------------------------------------------------------------- pause */
@@ -1157,11 +1214,13 @@ function finishRace(){
         '<button id="redo">Re-fly level</button>'+
         '<button id="tomenu">Menu</button>'+
       '</div>'+
-      '<p class="hint">Next start line: '+nextN+' rockets on '+nextRoute+'.</p>'+
+      '<p class="hint">Next start line: '+nextN+' rockets on '+nextRoute+'.'+
+        ((WPN.multi>1||WPN.power>1)?' Weapon carries over: ×'+WPN.multi+' cannon, firepower '+WPN.power+'.':'')+
+        ' <b>Re-fly</b> resets your weapon.</p>'+
     '</div>';
   show(overlay); topbar.classList.remove("hide");
   document.getElementById("next").onclick=function(){ level++; startLeg(); };
-  document.getElementById("redo").onclick=function(){ career-=levelPts; startLeg(); };
+  document.getElementById("redo").onclick=function(){ career-=levelPts; WPN.multi=1;WPN.power=1;WPN.homing=0; startLeg(); };
   document.getElementById("tomenu").onclick=function(){ level++; menu(); };
 }
 function ordSuffix(n){var s=["th","st","nd","rd"],v=n%100;return s[(v-20)%10]||s[v]||s[0];}
@@ -1217,38 +1276,90 @@ function updateParticles(dt){
 /* ---- projectiles ---- */
 var shots=[];
 var shotGeo=new T.SphereGeometry(0.55,8,6);
-function tryFire(r){
-  if(!r||STATE!=="race"||r.exploding>0||r.finished)return;
-  if(r.ammo<=0||r.fireCd>0)return;
-  var tgt=r.lockTarget, vx=0, vy=0;
-  if(tgt){
-    vx=Math.max(-46,Math.min(46,(tgt.x-r.x)*0.85));
-    vy=Math.max(-30,Math.min(30,(tgt.y-r.y)*0.7));
+function nearestAhead(s){
+  var best=null,bd=1e9;
+  for(var i=0;i<field.length;i++){
+    var t=field[i];
+    if(t===s.owner||t.exploding>0||t.shield>0||(t.finished&&t.z>=track.len))continue;
+    var dz=t.z-s.z; if(dz<-8||dz>500)continue;
+    var d=Math.max(0,dz)+Math.hypot(t.x-s.x,t.y-s.y)*1.5;
+    if(d<bd){bd=d;best=t;}
   }
-  var m=new T.Mesh(shotGeo,new T.MeshBasicMaterial({color:r.def.you?0x9fefff:0xff7a48,transparent:true,blending:T.AdditiveBlending}));
-  m.scale.set(1,1,3.4); trackGroup.add(m);
-  shots.push({mesh:m,x:r.x,y:r.y+0.4,z:r.z+4,vx:vx,vy:vy,vz:r.spd+250,life:2.8,owner:r});
-  r.ammo--; r.fireCd=r.def.you?0.42:0.95;
-  Audio_.blip(r.def.you?940:560,0.12,"sawtooth",0.22);
-  if(!r.def.you && tgt===player && alertsOn) Audio_.blip(1320,0.05,"square",0.13);   // "you've been shot at" cue
+  return best;
+}
+function tryFire(r){
+  if(!r||STATE!=="race"||r.exploding>0||r.finished||r.fireCd>0)return;
+  var you=r.def.you;
+  var n = you ? WPN.multi : 1;
+  var homing = you && WPN.homing>0;
+  var pcol = you ? powerColor(WPN.power) : 0xff7a48;
+  var pdmg = you ? WPN.power : 1;
+  var psc = you ? 1 + Math.min(WPN.power-1,5)*0.16 : 1;
+  var tgt = r.lockTarget;
+  var bvx=0, bvy=0;
+  if(tgt && !homing){                       // straight shots lead the target
+    bvx=Math.max(-46,Math.min(46,(tgt.x-r.x)*0.85));
+    bvy=Math.max(-30,Math.min(30,(tgt.y-r.y)*0.7));
+  }
+  for(var s=0;s<n;s++){
+    var spread=(n>1)?(s-(n-1)/2)*15:0;
+    var m=new T.Mesh(homing?MISSILE_GEO:shotGeo,
+      new T.MeshBasicMaterial({color:pcol,transparent:true,blending:T.AdditiveBlending}));
+    if(!homing)m.scale.set(psc,psc,3.4*psc);
+    trackGroup.add(m);
+    shots.push({mesh:m,x:r.x+spread*0.05,y:r.y+0.4,z:r.z+4,
+      vx:bvx+spread,vy:bvy,vz:r.spd+(homing?200:250),
+      life:homing?4.4:2.8, owner:r, dmg:pdmg, homing:homing,
+      tgt: homing ? (tgt||null) : null});
+  }
+  if(homing) WPN.homing=Math.max(0,WPN.homing-1);
+  r.fireCd = you ? (homing?0.5:0.24) : 0.95;
+  Audio_.blip(you?(homing?700:940):560, 0.12, homing?"triangle":"sawtooth", 0.22);
+  if(!you && tgt===player && alertsOn) Audio_.blip(1320,0.05,"square",0.13);
+}
+function hitRacer(t,s){
+  t.hp-=s.dmg; t.hitFlash=0.16;
+  var c=new T.Color(s.owner.def.you?powerColor(WPN.power):0xff7a48);
+  for(var i=0;i<9;i++)emit(s.x,s.y,s.z,(Math.random()-.5)*44,(Math.random()-.5)*44,(Math.random()-.5)*30+t.spd*0.2,0.3, c.r,c.g,c.b);
+  if(t.hp<=0){ explode(t,s.owner); }
+  else {
+    Audio_.blip(t.def.you?260:520,0.07,"square",0.16);
+    if(t.def.you){ shake=reduceMotion?0:0.6; flash(); }
+  }
 }
 function updateShots(dt){
   for(var i=shots.length-1;i>=0;i--){
     var s=shots[i]; s.life-=dt;
+    if(s.homing){
+      var tg=s.tgt;
+      if(!tg||tg.exploding>0||tg.shield>0||(tg.finished&&tg.z>=track.len)||tg.z<s.z-30){ tg=nearestAhead(s); s.tgt=tg; }
+      if(tg){
+        var dz=Math.max(24,tg.z-s.z);
+        var dvx=(tg.x-s.x)/dz*s.vz, dvy=(tg.y-s.y)/dz*s.vz;
+        var turn=Math.min(1,dt*3.6);
+        s.vx+=(dvx-s.vx)*turn; s.vy+=(dvy-s.vy)*turn;
+        s.vx=Math.max(-130,Math.min(130,s.vx)); s.vy=Math.max(-95,Math.min(95,s.vy));
+      }
+    }
     s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;
     s.mesh.position.set(s.x,s.y,s.z);
-    if(!reduceMotion)emit(s.x,s.y,s.z-2,(Math.random()-.5)*3,(Math.random()-.5)*3,-40,0.28,
-      s.owner.def.you?0.4:1, s.owner.def.you?0.9:0.5, s.owner.def.you?1:0.3);
+    if(s.homing)s.mesh.lookAt(s.x+s.vx,s.y+s.vy,s.z+s.vz);
+    if(!reduceMotion){
+      var you=s.owner.def.you;
+      emit(s.x,s.y,s.z-2,(Math.random()-.5)*3,(Math.random()-.5)*3,-40, s.homing?0.34:0.28,
+        s.homing?0.3:(you?0.55:1), s.homing?1:(you?0.9:0.5), s.homing?0.55:(you?1:0.3));
+    }
     var gone=(s.life<=0||s.z>track.len+250);
+    var hitR = 3.8 + (s.homing?2.2:0) + (s.owner.def.you?Math.min(s.dmg-1,5)*0.5:0);
+    var sweep = Math.abs(s.vz)*dt*1.15;                 // how far the shot moved this frame (anti-tunnelling)
     for(var j=0;j<field.length&&!gone;j++){
       var t=field[j];
       if(t===s.owner||t.exploding>0||t.shield>0||(t.finished&&t.z>=track.len))continue;
-      if(Math.abs(t.z-s.z)<4.5&&Math.hypot(t.x-s.x,t.y-s.y)<3.8){ explode(t,s.owner); gone=true; }
+      if(Math.abs(t.z-s.z)<4.6+sweep&&Math.hypot(t.x-s.x,t.y-s.y)<hitR){ hitRacer(t,s); gone=true; }
     }
-    // shots blow up asteroids too
     for(var k=asteroids.length-1;k>=0&&!gone;k--){
       var ax=asteroids[k];
-      if(Math.abs(ax.position.z-s.z)>ax.userData.r+3.5)continue;
+      if(Math.abs(ax.position.z-s.z)>ax.userData.r+3.5+sweep)continue;
       if(Math.hypot(ax.position.x-s.x,ax.position.y-s.y)<ax.userData.r+2.4){
         explodeAsteroid(k, s.owner===player); gone=true;
       }
@@ -1294,6 +1405,7 @@ function respawn(r){
   r.z=Math.max(30,lowestZ(r)-55);
   r.x*=0.35; r.y*=0.35; r.vx=0; r.vy=0;
   r.spd=track.base*0.55; r.mesh.visible=true; r.shield=2.4; r.hitT=0;
+  r.hp=r.def.you?3:2; r.hitFlash=0;
 }
 function acquireTarget(r){
   var best=null,bd=1e9;
@@ -1322,9 +1434,7 @@ function stepRacer(r,dt,input){
     if(r.shield<=0)r.mesh.visible=true;
   }
   if(r.fireCd>0)r.fireCd-=dt;
-  r.ammoT+=dt;
-  var maxAmmo=input?3:2, regenEvery=input?3.6:5.5;
-  if(r.ammo<maxAmmo&&r.ammoT>=regenEvery){ r.ammo++; r.ammoT=0; }
+  if(r.hitFlash>0)r.hitFlash-=dt;
 
   var far = !input && Math.abs(r.z-player.z)>560;   // far-away AI: cheap update, no scans
   var boost=false, steer=0, vsteer=0, brake=false, danger=null, inc=null;
@@ -1373,7 +1483,7 @@ function stepRacer(r,dt,input){
     else if(r.boost<=0) r.boosting=false;
     boost=r.boosting;
     r.lockTarget=acquireTarget(r);
-    if(r.lockTarget&&r.ammo>0&&r.fireCd<=0&&Math.random()<0.55*dt)tryFire(r);
+    if(r.lockTarget&&r.fireCd<=0&&Math.random()<0.55*dt)tryFire(r);
   }
   r.boosting=boost;
 
@@ -1434,6 +1544,16 @@ function stepRacer(r,dt,input){
       }
     }
   }
+  // weapon gems — player only
+  if(input){
+    for(var gi=gems.length-1;gi>=0;gi--){
+      var gm=gems[gi]; if(!gm.userData.live)continue;
+      if(Math.abs(gm.position.z-r.z)<5.5 && Math.hypot(gm.position.x-r.x,gm.position.y-r.y)<7.4){
+        collectGem(gm.userData.type, gm.position);
+        gm.userData.live=false; trackGroup.remove(gm); gems.splice(gi,1);
+      }
+    }
+  }
 
   if(!r.finished && r.z>=track.len){ r.finished=true; r.finishTime=elapsed;
     if(r.def.you)Audio_.blip(660,0.4,"triangle",0.3);
@@ -1444,6 +1564,7 @@ function stepRacer(r,dt,input){
   r.pitch += ((-vsteer*0.28) - r.pitch)*Math.min(1,dt*5);
   r.mesh.position.set(r.x,r.y,r.z);
   r.mesh.rotation.set(r.pitch,0,r.roll + Math.sin(r.z*0.02)*0.03);
+  r.mesh.scale.setScalar(1.15*(r.hitFlash>0?1+r.hitFlash*0.9:1));   // brief pop when shot but not downed
   if(!input && r.shield<=0) r.mesh.visible = Math.abs(r.z-player.z)<680;  // cull distant hulls
   updateFlame(r,input);
 }
@@ -1477,6 +1598,24 @@ function flash(){
 var bannerT=0, bannerEl=document.getElementById("banner"), reticleEl=document.getElementById("reticle"), warnEl=document.getElementById("warn");
 var fpEl=document.getElementById("fp"), mirrorEl=document.getElementById("mirror"), dashG=document.querySelectorAll("#fp .gauge span");
 function banner(txt){ bannerEl.textContent=txt; bannerEl.classList.remove("show"); void bannerEl.offsetWidth; bannerEl.classList.add("show"); bannerT=1.7; }
+function collectGem(type,pos){
+  var k=GEM_KIND[type], msg;
+  if(type==="multi"){
+    if(WPN.multi<3){ WPN.multi++; msg="TWIN CANNON ×"+WPN.multi; }
+    else { WPN.power++; msg="CANNONS MAXED — +FIREPOWER"; }
+  } else if(type==="power"){
+    WPN.power++; msg="FIREPOWER → "+WPN.power;
+  } else {
+    WPN.homing+=6; msg="SEEKER MISSILES ×"+WPN.homing;
+  }
+  for(var i=0;i<22;i++){ var a=Math.random()*6.283;
+    emit(pos.x,pos.y,pos.z, Math.cos(a)*(10+Math.random()*32),(Math.random()-.5)*26, Math.sin(a)*(10+Math.random()*32),
+      0.45+Math.random()*0.5, k.rgb[0],k.rgb[1],k.rgb[2]); }
+  Audio_.blip(880,0.08,"sine",0.26); Audio_.blip(1320,0.15,"triangle",0.2); Audio_.blip(1760,0.1,"sine",0.12);
+  shake=reduceMotion?0:0.35;
+  banner(msg);
+  updateWeaponHUD();
+}
 var scrV=new T.Vector3();
 function worldToScreen(v){
   scrV.copy(v).project(camera);
@@ -1492,8 +1631,8 @@ function updateCombatHUD(dt){
     if(sp){
       reticleEl.style.left=sp.x+"px"; reticleEl.style.top=sp.y+"px";
       var close=(lt.z-player.z)<150;
-      reticleEl.classList.toggle("locked", close && player.ammo>0);
-      reticleEl.querySelector("b").textContent = player.ammo<=0 ? "NO SHOTS" : (close?"LOCKED · FIRE":"TARGET IN SIGHT");
+      reticleEl.classList.toggle("locked", close);
+      reticleEl.querySelector("b").textContent = WPN.homing>0 ? "SEEKER LOCK · FIRE" : (close?"LOCKED · FIRE":"TARGET IN SIGHT");
       reticleEl.classList.add("show");
     } else reticleEl.classList.remove("show");
   } else reticleEl.classList.remove("show");
@@ -1550,7 +1689,7 @@ function updateHUD(){
     p.classList.toggle("on", i<lit && !lock);
     p.classList.toggle("lock", lock);
   });
-  document.querySelectorAll("#ammo-wrap i").forEach(function(p,i){p.classList.toggle("on",i<player.ammo);});
+  updateWeaponHUD();
   // mini-map pins: you + leader + the racers just ahead / behind you
   var pins=document.querySelectorAll("#track .pin");
   var yi=sorted.indexOf(player);
@@ -1622,6 +1761,17 @@ function frame(){
         emit(rg.position.x+Math.cos(ea)*6.4, rg.position.y+Math.sin(ea)*6.4, rg.position.z+(Math.random()-.5)*2,
           (Math.random()-.5)*6, 6+Math.random()*10, (Math.random()-.5)*6, 0.5+Math.random()*0.4, 1,0.6,0.2);
       }
+    }
+    // weapon gems — spin, bob, glow-pulse
+    for(var gg=0;gg<gems.length;gg++){
+      var gm=gems[gg], gd=gm.userData;
+      gm.visible=Math.abs(gm.position.z-player.z)<680;
+      if(!gm.visible)continue;
+      gd.t+=dt;
+      gd.crystal.rotation.y+=dt*2.0; gd.crystal.rotation.x+=dt*0.8;
+      gd.crystal.position.y=Math.sin(gd.t*2.6)*0.5;
+      gd.halo.material.opacity=0.32+Math.abs(Math.sin(gd.t*3))*0.32;
+      gd.halo.scale.setScalar(5.4+Math.sin(gd.t*3)*0.9);
     }
   }
 
