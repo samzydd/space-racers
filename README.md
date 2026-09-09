@@ -11,7 +11,8 @@ your way up the order.
 - 3rd-person **and** first-person / cockpit camera (`C`), with a live rear-view mirror
 - Endless levels: 22 rockets on level 1, two fewer each level (routes cycle through three environments)
 - Forward weapons with target lock; rivals shoot back, with a directional "dodge" alert
-- Boost that burns out and needs to recharge; teal rings give an acceleration surge
+- Shots also blow up asteroids in your path
+- Boost that burns out and needs to recharge; flaming BOOST rings give an acceleration surge
 - Procedural rockets, asteroid fields, planets, nebulae — everything drawn in code
 - Synthesised engine/SFX (no audio assets), light + dark theme aware
 
