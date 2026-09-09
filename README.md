@@ -9,7 +9,10 @@ your way up the order.
 ## Features
 
 - 3rd-person **and** first-person / cockpit camera (`C`), with a live rear-view mirror
-- Endless levels: 22 rockets on level 1, two fewer each level (routes cycle through three environments)
+- 6 levels to the Cup: 22 rockets on level 1, two fewer each level, and each level ramps difficulty
+  (faster rivals, denser asteroid fields, tighter lanes, sharper AI fire)
+- Finish in the bottom two of a level and you must re-fly it; clear all 6 to win a glowing trophy
+- Winners can leave the game's creator a message (opens a pre-filled email / copy-to-clipboard)
 - Unlimited forward fire with target lock; rivals shoot back, with a directional "dodge" alert
 - Weapon gems: amber = extra cannon (up to x3), violet = more firepower (colours your shots),
   green = seeker missiles that home onto a target. Firepower/cannons carry between levels

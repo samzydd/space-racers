@@ -158,6 +158,31 @@
   .finish-head h2{font-size:clamp(2rem,5.5vw,3rem);font-weight:900}
   .finish-head .pos{color:var(--yellow)}
 
+  /* win screen — glowing trophy + creator message form */
+  .trophy-wrap{position:relative;display:grid;place-items:center;width:168px;height:148px;margin:2px auto 12px}
+  .trophy-glow{position:absolute;inset:-34px;border-radius:50%;
+    background:radial-gradient(circle, rgba(244,201,68,.55), rgba(244,201,68,0) 68%);
+    animation:tglow 2.4s ease-in-out infinite}
+  .trophy{width:116px;height:116px;position:relative;
+    filter:drop-shadow(0 0 10px rgba(244,201,68,.85)) drop-shadow(0 6px 0 rgba(25,29,56,.22));
+    animation:tfloat 2.4s ease-in-out infinite}
+  @keyframes tglow{0%,100%{transform:scale(.88);opacity:.5}50%{transform:scale(1.14);opacity:.95}}
+  @keyframes tfloat{0%,100%{filter:drop-shadow(0 0 7px rgba(244,201,68,.65)) drop-shadow(0 6px 0 rgba(25,29,56,.22));transform:translateY(0)}
+    50%{filter:drop-shadow(0 0 22px rgba(255,226,128,1)) drop-shadow(0 6px 0 rgba(25,29,56,.22));transform:translateY(-4px)}}
+  .win-head{text-align:center}
+  .win-head h2{font-family:"Grandstander",sans-serif;font-weight:900;font-size:clamp(2rem,7vw,3.1rem)}
+  .win-head .tagline{max-width:44ch}
+  .sub-form{display:grid;gap:10px;margin-top:10px}
+  .sub-form label{display:grid;gap:4px;font-family:"DM Mono",ui-monospace,monospace;font-size:.66rem;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .sub-form input,.sub-form textarea{font:inherit;font-family:"Nunito",sans-serif;font-size:.98rem;color:var(--ink);
+    background:var(--paper-2);border:2px solid var(--ink);border-radius:12px 9px 12px 9px;padding:.55em .8em;resize:vertical}
+  .sub-form input:focus-visible,.sub-form textarea:focus-visible{outline:3px solid var(--teal);outline-offset:1px}
+  .sub-actions{display:flex;gap:10px;flex-wrap:wrap}
+  .sub-to{font-family:"DM Mono",monospace;font-size:.72rem;color:var(--ink-soft);line-height:1.5;margin:2px 0 0}
+  .sub-status{font-family:"DM Mono",monospace;font-size:.76rem;color:var(--teal);min-height:1.1em;margin:2px 0 0}
+  @media (prefers-reduced-motion:reduce){.trophy-glow,.trophy{animation:none}}
+
   .actions{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
   .hint{margin-top:18px;font-family:"DM Mono",monospace;font-size:.78rem;color:var(--ink-soft);line-height:1.7}
   .hint kbd{background:var(--paper-2);border:1.5px solid var(--card-edge);border-bottom-width:3px;border-radius:6px;padding:1px 6px;font:inherit;color:var(--ink)}
@@ -524,10 +549,22 @@ function makeRacers(n){
   }
   return arr;
 }
-/* level progression: 22 rockets on level 1, two fewer each level (floor 4) */
-var level=1, career=0, levelPts=0;
+/* level progression: 22 rockets on level 1, two fewer each level; 6 legs to the Cup.
+   each level also ramps difficulty — faster rivals, denser fields, tighter lanes. */
+var TOTAL_LEVELS=6;
+var level=1, career=0, levelPts=0, careerTime=0;
+var CREATOR_EMAIL="Sam@creativesakani.com";
 function fieldSize(){ return Math.max(4, 22 - 2*(level-1)); }
-function levelTrack(){ return TRACKS[(level-1)%TRACKS.length]; }
+function levelTrack(){
+  var b=TRACKS[(level-1)%TRACKS.length], d=level-1;
+  return Object.assign({}, b, {
+    diff: d,
+    laneR: b.laneR*(1 - Math.min(d,6)*0.02),          // up to −12% narrower
+    rocks: Math.round(b.rocks*(1 + d*0.16)),          // denser asteroid field
+    base:  b.base*(1 + d*0.02),                       // everyone a little quicker
+    ringGap: 430 + d*55                               // boost rings get rarer
+  });
+}
 
 var TRACKS=[
   {name:"Aurora Fields", len:14500, base:214, laneR:70, rocks:110, rockMin:3, rockMax:11,
@@ -816,7 +853,7 @@ function loadTrack(t,seed){
   }
   // boost rings — a teal gate wreathed in fire, with a chevron "runway" and a
   // small floating BOOST sign so it clearly reads as an acceleration pad
-  var gap=430, z2=460;
+  var gap=t.ringGap||430, z2=460;
   while(z2<t.len-200){
     var pa=rnd()*Math.PI*2, pr2=rnd()*t.laneR*0.7;
     var rg=new T.Group();
@@ -1031,11 +1068,11 @@ function menu(){
   }).join("");
   overlay.innerHTML=
     '<div class="panel card">'+
-      '<div class="eyebrow">Interplanetary Postal Derby &middot; Level '+level+'</div>'+
+      '<div class="eyebrow">Interplanetary Postal Derby &middot; Level '+level+' / '+TOTAL_LEVELS+'</div>'+
       '<div class="title-row"><span class="cup">🚀</span><h1>Space Racers</h1></div>'+
-      '<p class="tagline">Twenty-two mail rockets launch from Aurora. Every level, two fewer make the next start line &mdash; so fly clean, catch the rings, and shoot your way up the order. How far can Route&nbsp;9 get?</p>'+
+      '<p class="tagline">Twenty-two mail rockets launch from Aurora. Every leg drops two from the grid and the field gets meaner &mdash; fly clean, catch the rings, grab the gems, and shoot your way up. Finish in the bottom two and you re-fly the leg. Clear all '+TOTAL_LEVELS+' to lift the Cup.</p>'+
       '<div class="level-band">'+
-        '<div><div class="lb-k">Level</div><div class="lb-v">'+level+'</div></div>'+
+        '<div><div class="lb-k">Level</div><div class="lb-v">'+level+' / '+TOTAL_LEVELS+'</div></div>'+
         '<div><div class="lb-k">Route</div><div class="lb-v">'+t.name+'</div></div>'+
         '<div><div class="lb-k">On the grid</div><div class="lb-v">'+n+' rockets</div></div>'+
         (career>0?'<div><div class="lb-k">Career</div><div class="lb-v">'+career+' pts</div></div>':'')+
@@ -1054,7 +1091,7 @@ function menu(){
   document.getElementById("go").onclick=function(){Audio_.init();Audio_.resume();startLeg();};
   document.getElementById("showCtrls").onclick=function(){ ctrlFrom="menu"; showControls(); };
   var rc=document.getElementById("restartChamp");
-  if(rc)rc.onclick=function(){level=1;career=0;WPN.multi=1;WPN.power=1;WPN.homing=0;menu();};
+  if(rc)rc.onclick=function(){level=1;career=0;careerTime=0;WPN.multi=1;WPN.power=1;WPN.homing=0;menu();};
 }
 
 /* ---------------------------------------------------------------- controls & help screen */
@@ -1073,7 +1110,7 @@ function renderControls(){
     '<div class="panel card">'+
       '<div class="eyebrow">Controls &amp; help</div>'+
       '<h2 style="font-size:1.7rem;margin-top:4px">How to play</h2>'+
-      '<p class="tagline">Fly your rocket from planet to planet and finish as high as you can &mdash; every level cuts the field by two. Grab the teal rings for a speed surge, line a rival up dead ahead until the reticle turns gold and fire, and break the way the alert points when a shot is on you.</p>'+
+      '<p class="tagline">Race planet to planet across '+TOTAL_LEVELS+' legs. Each leg the field loses two rockets and the rivals get faster, denser asteroids, sharper shooting. Finish in the <b>bottom two</b> and you re-fly that leg; clear all '+TOTAL_LEVELS+' outside the bottom two to win the Cup. Grab the rings for a speed surge, line a rival up until the reticle turns gold and fire, and break the way the alert points when a shot is on you.</p>'+
       '<h3 style="margin:22px 0 2px;font-size:1.02rem">Keyboard</h3>'+
       '<p class="hint" style="margin:0 0 8px">Click <b>Change</b>, then press the key you want. <kbd>Esc</kbd> cancels.</p>'+
       '<table class="ctrls"><tbody>'+rows+'</tbody></table>'+
@@ -1109,7 +1146,7 @@ function startLeg(){
   camPos.set(0,4.5,-24); camera.position.copy(camPos);
   camMode="chase"; camera.up.set(0,1,0);
   demoRocket.visible=false;
-  document.getElementById("leg-name").textContent="Level "+level+" · "+track.name;
+  document.getElementById("leg-name").textContent="Level "+level+" / "+TOTAL_LEVELS+" · "+track.name;
   buildTrackPins();
   buildBoostPips();
   hide(overlay); show(hud); topbar.classList.add("hide");
@@ -1187,8 +1224,12 @@ function finishRace(){
   order.forEach(function(r,i){r.place=i+1;});
   var N=order.length;
   var you=(order.findIndex(function(r){return r.def.you;})+1)||N;
-  levelPts=N-you; career+=levelPts;
+  levelPts=N-you; career+=levelPts; careerTime+=elapsed;
+  var bottom2 = you >= N-1;                       // last or 2nd-last -> must re-fly this level
+  var gameWon = !bottom2 && level>=TOTAL_LEVELS;  // cleared the final leg outside the bottom two
   hide(hud); hide(document.getElementById("touch"));
+
+  if(gameWon){ winScreen(you,N,order); return; }
 
   // compact list: top 6 plus your neighbourhood
   var idxs=[];
@@ -1202,26 +1243,102 @@ function finishRace(){
     rows+='<tr class="'+(r.def.you?"you":"")+'"><td>'+ordinal(ix+1)+'</td><td><span class="swatch" style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#'+r.def.body.toString(16).padStart(6,"0")+';border:1.5px solid var(--ink);vertical-align:middle;margin-right:7px"></span>'+r.def.name+'</td><td class="pts">'+fmtTime(r.finishTime)+'</td></tr>';
     prev=ix;
   });
-  var nextN=Math.max(4,N-2), nextRoute=TRACKS[level%TRACKS.length].name;
+  var cutoff=N-2;                                  // must finish here or better to advance
+  var nextT=bottom2?levelTrack():Object.assign({},TRACKS[level%TRACKS.length]);
+  var nextN=bottom2?N:Math.max(4,N-2);
   overlay.innerHTML=
     '<div class="panel card">'+
-      '<div class="eyebrow">Level '+level+' &middot; '+track.name+' &middot; '+fmtTime(elapsed)+'</div>'+
+      '<div class="eyebrow">Level '+level+' / '+TOTAL_LEVELS+' &middot; '+track.name+' &middot; '+fmtTime(elapsed)+'</div>'+
       '<div class="finish-head"><h2>'+ordinal(you)+' <span class="pos">of '+N+'</span></h2></div>'+
-      '<p class="tagline" style="margin-top:6px">+'+levelPts+' pts on the level &nbsp;&middot;&nbsp; career total '+career+'</p>'+
+      (bottom2
+        ? '<p class="tagline" style="margin-top:6px;color:var(--red)"><b>Bottom two &mdash; you don\'t advance.</b> Re-fly Level '+level+' and finish '+ordinal(cutoff)+' or better to move on.</p>'
+        : '<p class="tagline" style="margin-top:6px">+'+levelPts+' pts on the level &nbsp;&middot;&nbsp; career total '+career+'</p>')+
       '<table class="standings" style="margin-top:12px"><thead><tr><th>Pos</th><th>Pilot</th><th style="text-align:right">Time</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '<div class="actions">'+
-        '<button class="primary" id="next">Level '+(level+1)+' &rarr;</button>'+
-        '<button id="redo">Re-fly level</button>'+
+        (bottom2
+          ? '<button class="primary" id="next">Re-fly Level '+level+' &#8635;</button>'
+          : '<button class="primary" id="next">Level '+(level+1)+' &rarr;</button>')+
+        '<button id="redo">Restart level (reset weapon)</button>'+
         '<button id="tomenu">Menu</button>'+
       '</div>'+
-      '<p class="hint">Next start line: '+nextN+' rockets on '+nextRoute+'.'+
-        ((WPN.multi>1||WPN.power>1)?' Weapon carries over: ×'+WPN.multi+' cannon, firepower '+WPN.power+'.':'')+
-        ' <b>Re-fly</b> resets your weapon.</p>'+
+      '<p class="hint">'+(bottom2?'Same grid: ':'Next start line: ')+nextN+' rockets on '+nextT.name+'.'+
+        ((WPN.multi>1||WPN.power>1)?' Weapon carried: ×'+WPN.multi+' cannon, firepower '+WPN.power+'.':'')+
+        '</p>'+
     '</div>';
   show(overlay); topbar.classList.remove("hide");
-  document.getElementById("next").onclick=function(){ level++; startLeg(); };
+  document.getElementById("next").onclick=function(){ if(!bottom2)level++; startLeg(); };
   document.getElementById("redo").onclick=function(){ career-=levelPts; WPN.multi=1;WPN.power=1;WPN.homing=0; startLeg(); };
-  document.getElementById("tomenu").onclick=function(){ level++; menu(); };
+  document.getElementById("tomenu").onclick=function(){ menu(); };
+}
+
+function winScreen(you,N,order){
+  STATE="results";
+  var top=order.slice(0,Math.min(5,N)).map(function(r,i){
+    return '<tr class="'+(r.def.you?"you":"")+'"><td>'+ordinal(i+1)+'</td><td>'+r.def.name+'</td><td class="pts">'+fmtTime(r.finishTime)+'</td></tr>';
+  }).join("");
+  overlay.innerHTML=
+    '<div class="panel card">'+
+      '<div class="trophy-wrap"><div class="trophy-glow"></div>'+
+        '<svg class="trophy" viewBox="0 0 80 80" aria-hidden="true">'+
+          '<path d="M20 12h40v10c0 12-8 20-20 20S20 34 20 22V12z" fill="#f4c944"/>'+
+          '<path d="M20 16H11c0 11 5 17 13 18M60 16h9c0 11-5 17-13 18" fill="none" stroke="#f4c944" stroke-width="4" stroke-linecap="round"/>'+
+          '<rect x="36" y="41" width="8" height="12" fill="#dfa62c"/>'+
+          '<path d="M23 53h34l4 10H19z" fill="#f4c944"/>'+
+          '<rect x="15" y="63" width="50" height="7" rx="2" fill="#dfa62c"/>'+
+          '<circle cx="39" cy="23" r="6" fill="#fff6d8" opacity=".65"/>'+
+        '</svg></div>'+
+      '<div class="win-head">'+
+        '<div class="eyebrow">Comet Cup &middot; '+TOTAL_LEVELS+' legs complete</div>'+
+        '<h2>You won the Cup!</h2>'+
+        '<p class="tagline" style="margin:8px auto 0">Finished Level '+TOTAL_LEVELS+' in '+ordinal(you)+' of '+N+' &middot; '+career+' career points &middot; '+fmtTime(careerTime)+' total flight time.</p>'+
+      '</div>'+
+      '<table class="standings" style="margin-top:14px"><thead><tr><th>Pos</th><th>Pilot</th><th style="text-align:right">Time</th></tr></thead><tbody>'+top+'</tbody></table>'+
+      '<h3 style="margin:22px 0 2px;font-size:1.05rem">Send a note to the game\'s creator</h3>'+
+      '<form class="sub-form" id="subForm">'+
+        '<label>Your name<input id="subName" type="text" maxlength="48" autocomplete="off" placeholder="Ace pilot"></label>'+
+        '<label>Message<textarea id="subMsg" maxlength="600" rows="3" placeholder="What did you think?"></textarea></label>'+
+        '<div class="sub-actions">'+
+          '<button type="button" class="primary" id="subEmail">Open email to Sam</button>'+
+          '<button type="button" id="subCopy">Copy message</button>'+
+        '</div>'+
+        '<p class="sub-to">Goes to <b>'+CREATOR_EMAIL+'</b> &mdash; the game can\'t send mail itself, so this opens your mail app (or copies the text).</p>'+
+        '<p class="sub-status" id="subStatus"></p>'+
+      '</form>'+
+      '<div class="actions">'+
+        '<button class="primary" id="playAgain">Play again from Level 1</button>'+
+        '<button id="tomenu2">Menu</button>'+
+      '</div>'+
+    '</div>';
+  show(overlay); topbar.classList.remove("hide");
+  Audio_.blip(660,0.18,"triangle",0.3); Audio_.blip(880,0.2,"triangle",0.26); setTimeout(function(){Audio_.blip(1180,0.4,"triangle",0.24);},180);
+
+  function compose(){
+    var nm=(document.getElementById("subName").value||"").trim()||"Anonymous racer";
+    var mg=(document.getElementById("subMsg").value||"").trim()||"(no message)";
+    var body="Name: "+nm+"\r\n\r\nMessage:\r\n"+mg+
+      "\r\n\r\n-- Finished Space Racers: Level "+TOTAL_LEVELS+" cleared, "+career+" career points, "+fmtTime(careerTime)+" total flight time.";
+    return {nm:nm, subject:"Space Racers - "+nm+" finished the game", body:body};
+  }
+  document.getElementById("subEmail").onclick=function(){
+    var c=compose();
+    var href="mailto:"+CREATOR_EMAIL+"?subject="+encodeURIComponent(c.subject)+"&body="+encodeURIComponent(c.body);
+    var a=document.createElement("a"); a.href=href; a.target="_blank"; a.rel="noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    document.getElementById("subStatus").textContent="Opening your mail app… nothing? Use “Copy message” instead.";
+  };
+  document.getElementById("subCopy").onclick=function(){
+    var c=compose();
+    var full="To: "+CREATOR_EMAIL+"\nSubject: "+c.subject+"\n\n"+c.body;
+    var done=function(){ document.getElementById("subStatus").textContent="Copied — paste it into an email to "+CREATOR_EMAIL; };
+    var fail=function(){ document.getElementById("subStatus").textContent="Couldn't copy — email "+CREATOR_EMAIL+" with your name and message."; };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(full).then(done,function(){
+      var ta=document.createElement("textarea"); ta.value=full; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand("copy"); done(); }catch(e){ fail(); } ta.remove();
+    }); } else { fail(); }
+  };
+  function resetRun(){ level=1;career=0;careerTime=0;WPN.multi=1;WPN.power=1;WPN.homing=0; }
+  document.getElementById("playAgain").onclick=function(){ resetRun(); startLeg(); };
+  document.getElementById("tomenu2").onclick=function(){ resetRun(); menu(); };
 }
 function ordSuffix(n){var s=["th","st","nd","rd"],v=n%100;return s[(v-20)%10]||s[v]||s[0];}
 function ordinal(n){return n+ordSuffix(n);}
@@ -1293,7 +1410,7 @@ function tryFire(r){
   var n = you ? WPN.multi : 1;
   var homing = you && WPN.homing>0;
   var pcol = you ? powerColor(WPN.power) : 0xff7a48;
-  var pdmg = you ? WPN.power : 1;
+  var pdmg = you ? WPN.power : (1 + Math.floor((track&&track.diff||0)/4));   // level 5+ rival shots hit harder (max 2)
   var psc = you ? 1 + Math.min(WPN.power-1,5)*0.16 : 1;
   var tgt = r.lockTarget;
   var bvx=0, bvy=0;
@@ -1483,7 +1600,7 @@ function stepRacer(r,dt,input){
     else if(r.boost<=0) r.boosting=false;
     boost=r.boosting;
     r.lockTarget=acquireTarget(r);
-    if(r.lockTarget&&r.fireCd<=0&&Math.random()<0.55*dt)tryFire(r);
+    if(r.lockTarget&&r.fireCd<=0&&Math.random()<(0.5+dfc*0.13)*dt)tryFire(r);   // rivals shoot more each level
   }
   r.boosting=boost;
 
@@ -1493,10 +1610,11 @@ function stepRacer(r,dt,input){
   r.x += r.vx*dt; r.y += r.vy*dt;
   clampLane(r);
 
-  var tgt=track.base*(input?1.09:r.def.skill*1.02);
+  var dfc=track.diff||0;
+  var tgt=track.base*(input?1.09:r.def.skill*(1.02+dfc*0.02));   // rivals get quicker each level
   if(!input){
     var gap=(player.z-r.z);
-    tgt*= 1 + Math.max(-0.08,Math.min(0.055,gap*0.00035)); // light rubber-band: field spreads out
+    tgt*= 1 + Math.max(-0.08,Math.min(0.06-dfc*0.006,gap*0.00035)); // less catch-up help later on
   }
   if(brake)tgt*=0.45;
   if(boost){
