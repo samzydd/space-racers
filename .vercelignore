@@ -1,0 +1,6 @@
+# keep deploys lean — everything the game needs is index.html
+Screen Recording*.mp4
+*.mp4
+.DS_Store
+.git
+README.md
